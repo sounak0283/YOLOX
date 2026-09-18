@@ -475,6 +475,16 @@ class YOLOXHead(nn.Module):
             cls_preds_ = (
                 cls_preds_.float().sigmoid_() * obj_preds_.float().sigmoid_()
             ).sqrt()
+            # Mathematically bounded in [0,1] (sqrt of a product of two sigmoids),
+            # but float32 rounding can push a very-confident prediction fractionally
+            # above 1.0 (e.g. 1.0000001) - CUDA's binary_cross_entropy asserts its
+            # input is strictly in [0,1] with no tolerance, and trips a device-side
+            # assert on exactly that case (hit during the PPE run's first epoch,
+            # never during fire/smoke's 2-class run - more classes per anchor box
+            # raises the odds of one landing on this edge). Clamp to the valid range;
+            # this changes nothing for the overwhelming majority of values already
+            # inside it.
+            cls_preds_ = cls_preds_.clamp(min=0.0, max=1.0)
             pair_wise_cls_loss = F.binary_cross_entropy(
                 cls_preds_.unsqueeze(0).repeat(num_gt, 1, 1),
                 gt_cls_per_image.unsqueeze(1).repeat(1, num_in_boxes_anchor, 1),

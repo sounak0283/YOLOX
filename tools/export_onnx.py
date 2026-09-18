@@ -88,7 +88,9 @@ def main():
     logger.info("loading checkpoint done.")
     dummy_input = torch.randn(args.batch_size, 3, exp.test_size[0], exp.test_size[1])
 
-    torch.onnx._export(
+    # torch.onnx._export is an internal API removed in torch 2.6; use the public
+    # torch.onnx.export, which takes the same arguments for this call shape.
+    torch.onnx.export(
         model,
         dummy_input,
         args.output_name,
